@@ -1,0 +1,125 @@
+---
+title: "DataPreparation"
+author: "Edoardo Diana"
+date: "2025-11-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+fig.width = 10, fig.height = 7)
+```
+
+
+# Introduction
+
+This notebook prepares and explores the **arXiv General Relativity collaboration network** dataset.
+
+## Dataset Description
+
+- **Source**: Stanford Network Analysis Project (SNAP)
+- **Period**: 1993-2003
+- **Domain**: General Relativity and Quantum Cosmology papers
+- **Format**: Undirected graph (co-authorship)
+
+---
+
+# Load Libraries and Data
+
+```{r}
+library(igraph)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+
+# Load network
+g <- readRDS("../data/processed/network.rds")
+
+```
+
+---
+
+# Basic Network Properties
+
+
+```{r}
+cat("Nodes:", vcount(g), "\n")
+cat("Edges:", ecount(g), "\n")
+cat("Density:", edge_density(g), "\n")
+cat("Diameter:", diameter(g), "\n")
+cat("Average path length:", mean_distance(g), "\n")
+cat("Connected:", is_connected(g), "\n")
+
+```
+
+---
+
+# Degree Distribution
+
+
+```{r}
+
+deg <- degree(g)
+
+# Summary statistics
+summary(deg)
+
+# Plot
+ggplot(data.frame(degree = deg), aes(x = degree)) +
+  geom_histogram(bins = 50, fill = "steelblue", alpha = 0.7) +
+  labs(title = "Degree Distribution",
+  x = "Degree", y = "Frequency") +
+  theme_minimal()
+```
+
+---
+
+# Network Visualization (Subset)
+
+
+```{r}
+
+# Take largest connected component for visualization
+comp <- components(g)
+g_main <- induced_subgraph(g, which(comp$membership == which.max(comp$csize)))
+
+# Sample 500 nodes for readability
+set.seed(42)
+g_sample <- induced_subgraph(g_main, sample(vcount(g_main), 500))
+
+#Plot
+plot(g_sample,
+  vertex.size = 2,
+  vertex.label = NA,
+  vertex.color = "lightblue",
+  edge.color = "gray80",
+  layout = layout_with_fr(g_sample),
+  main = "Scientific Collaboration Network (Sample)")
+```
+
+---
+
+# Save Prepared Data
+
+Save main component for further analysis
+
+```{r}
+saveRDS(g_main, "../data/processed/network_main_component.rds")
+cat("✓ Main component saved\n")
+
+```
+
+
+---
+
+# Next Steps
+
+- **02_centrality_analysis.Rmd**: Identify influential researchers
+- **03_community_detection.Rmd**: Detect research communities
+- And so on...
+
+```{r}
+
+
+```
+
