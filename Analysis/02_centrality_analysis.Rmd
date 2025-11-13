@@ -1,0 +1,515 @@
+---
+title: "02_centrality_analysis"
+author: "Edoardo Diana"
+date: "2025-11-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+fig.width = 12, fig.height = 8)
+
+```
+
+```{r}
+library(igraph)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(tidyr)
+library(patchwork) # Per combinare plot
+
+```
+
+
+# Introduction
+
+This notebook analyzes **centrality measures** to identify the most influential researchers in the arXiv General Relativity collaboration network.
+
+## Research Question
+
+**Who are the most influential researchers in the theoretical physics community?**
+
+Different centrality measures capture different notions of "influence":
+
+- **Degree**: Social hubs (many collaborators)
+- **Closeness**: Quick access to entire network
+- **Betweenness**: Knowledge brokers (bridge different communities)
+- **Eigenvector**: Collaborate with other influential researchers
+- **PageRank**: Prestige from connections
+- **Katz**: Weighted influence considering all path lengths
+
+---
+
+# Load Data
+
+Load main component (prepared in 01_data_preparation.Rmd)
+
+```{r}
+data_file <- "data/processed/network_main_component.rds"
+
+if (!file.exists(data_file)) {
+stop("❌ Main component not found. Run 01_data_preparation.Rmd first!")
+}
+
+g <- readRDS(data_file)
+
+cat("Network loaded:\n")
+cat("Nodes:", vcount(g), "\n")
+cat("Edges:", ecount(g), "\n")
+cat("Density:", round(edge_density(g), 6), "\n")
+
+```
+
+---
+
+# Centrality Measures
+
+
+---
+
+# Calculate All Centrality Measures
+
+
+
+```{r}
+# Calculate all centrality measures
+centrality_df <- data.frame(
+  node_id = as.character(1:vcount(g)),
+  degree = degree(g),
+  closeness = closeness(g, normalized = TRUE),
+  betweenness = betweenness(g, normalized = TRUE),
+  eigenvector = eigen_centrality(g)$vector,
+  pagerank = page_rank(g)$vector,
+  katz = alpha_centrality(g, alpha = 1/(max(eigen(as_adjacency_matrix(g, sparse = FALSE))$values) + 0.1))
+)
+
+# Add normalized versions for comparison​
+centrality_df <- centrality_df %>%
+  mutate(
+    degree_norm = (degree - min(degree)) / (max(degree) - min(degree)),
+    closeness_norm = (closeness - min(closeness)) / (max(closeness) - min(closeness)),
+    betweenness_norm = (betweenness - min(betweenness)) / (max(betweenness) - min(betweenness)),
+    eigenvector_norm = (eigenvector - min(eigenvector)) / (max(eigenvector) - min(eigenvector)),
+    pagerank_norm = (pagerank - min(pagerank)) / (max(pagerank) - min(pagerank)),
+    katz_norm = (katz - min(katz)) / (max(katz) - min(katz))
+  )
+
+cat("✓ Centrality measures calculated\n")
+
+```
+
+
+---
+
+# 1. Degree Centrality
+
+**Definition**: Number of direct collaborators (social hubs).
+
+
+```{r}
+
+# Top 15 by degree
+top15_degree <- centrality_df %>%
+  arrange(desc(degree)) %>%
+  head(15) %>%
+  mutate(node_id = factor(node_id, levels = node_id))
+
+# Barplot
+ggplot(top15_degree, aes(x = node_id, y = degree, fill = degree)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  labs(title = "Top 15 Researchers by Degree Centrality",
+    subtitle = "Number of direct collaborators",
+    x = "Author ID", y = "Degree (Number of Collaborators)") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none",
+  axis.text.y = element_text(size = 10))
+```
+
+
+---
+
+# 2. Closeness Centrality
+
+**Definition**: Average distance to all other nodes (quick access to network).
+
+
+```{r}
+top15_closeness <- centrality_df %>%
+  arrange(desc(closeness)) %>%
+  head(15) %>%
+  mutate(node_id = factor(node_id, levels = node_id))
+
+ggplot(top15_closeness, aes(x = node_id, y = closeness, fill = closeness)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_gradient(low = "lightyellow", high = "orange") +
+  labs(title = "Top 15 Researchers by Closeness Centrality",
+    subtitle = "Quick access to entire network",
+    x = "Author ID", y = "Closeness (normalized)") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+
+```
+
+---
+
+# 3. Betweenness Centrality
+
+**Definition**: Bridges between communities (knowledge brokers).
+
+
+
+```{r}
+top15_betweenness <- centrality_df %>%
+  arrange(desc(betweenness)) %>%
+  head(15) %>%
+  mutate(node_id = factor(node_id, levels = node_id))
+
+ggplot(top15_betweenness, aes(x = node_id, y = betweenness, fill = betweenness)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_gradient(low = "lightgreen", high = "darkgreen") +
+  labs(title = "Top 15 Researchers by Betweenness Centrality",
+    subtitle = "Knowledge brokers connecting communities",
+    x = "Author ID", y = "Betweenness (normalized)") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+
+```
+
+
+---
+
+# 4. Eigenvector Centrality
+
+**Definition**: Influence from connections to other influential nodes (academic prestige).
+
+
+```{r}
+top15_eigen <- centrality_df %>%
+  arrange(desc(eigenvector)) %>%
+  head(15) %>%
+  mutate(node_id = factor(node_id, levels = node_id))
+
+ggplot(top15_eigen, aes(x = node_id, y = eigenvector, fill = eigenvector)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_gradient(low = "pink", high = "red") +
+  labs(title = "Top 15 Researchers by Eigenvector Centrality",
+    subtitle = "Collaborating with other influential researchers",
+    x = "Author ID", y = "Eigenvector Centrality") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+
+```
+
+
+---
+
+# 5. PageRank
+
+**Definition**: Google's algorithm for network prestige.
+
+
+```{r}
+
+top15_pagerank <- centrality_df %>%
+  arrange(desc(pagerank)) %>%
+  head(15) %>%
+  mutate(node_id = factor(node_id, levels = node_id))
+
+ggplot(top15_pagerank, aes(x = node_id, y = pagerank, fill = pagerank)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_gradient(low = "lightcoral", high = "darkred") +
+  labs(title = "Top 15 Researchers by PageRank",
+    subtitle = "Overall network prestige",
+    x = "Author ID", y = "PageRank") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+---
+
+# 6. Katz Centrality
+
+**Definition**: Weighted influence considering all path lengths.
+
+
+
+```{r}
+
+top15_katz <- centrality_df %>%
+  arrange(desc(katz)) %>%
+  head(15) %>%
+  mutate(node_id = factor(node_id, levels = node_id))
+
+ggplot(top15_katz, aes(x = node_id, y = katz, fill = katz)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_gradient(low = "lavender", high = "purple") +
+  labs(title = "Top 15 Researchers by Katz Centrality",
+    subtitle = "Global influence via all network paths",
+    x = "Author ID", y = "Katz Centrality") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+
+---
+
+# Comparative Analysis
+
+## Distribution of All Centrality Measures
+
+
+
+```{r}
+
+plot_data <- centrality_df %>%
+  select(degree, closeness, betweenness, eigenvector, pagerank, katz) %>%
+  pivot_longer(everything(), names_to = "measure", values_to = "value")
+
+ggplot(plot_data, aes(x = value, fill = measure)) +
+  geom_histogram(bins = 50, alpha = 0.7, show.legend = FALSE) +
+  facet_wrap(~ measure, scales = "free", ncol = 2) +
+  labs(title = "Distribution of Centrality Measures",
+    x = "Centrality Value", y = "Frequency") +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold", size = 12))
+```
+
+---
+
+## Top 10 Comparison (Side-by-side)
+
+
+```{r}
+
+# Get top 10 by PageRank
+top10_ids <- centrality_df %>%
+  arrange(desc(pagerank)) %>%
+  head(10) %>%
+  pull(node_id)
+
+# Extract normalized values for comparison
+top10_data <- centrality_df %>%
+  filter(node_id %in% top10_ids) %>%
+  select(node_id, degree_norm, closeness_norm, betweenness_norm,
+  eigenvector_norm, pagerank_norm, katz_norm) %>%
+  pivot_longer(-node_id, names_to = "measure", values_to = "value") %>%
+  mutate(measure = gsub("_norm", "", measure),
+    measure = factor(measure, levels = c("degree", "closeness", "betweenness",
+"eigenvector", "pagerank", "katz")))
+
+ggplot(top10_data, aes(x = node_id, y = value, fill = measure)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set3") +
+  labs(title = "Top 10 Researchers: Normalized Centrality Comparison",
+       subtitle = "All measures scaled to [0,1] for fair comparison",
+       x = "Author ID", y = "Normalized Centrality",
+       fill = "Measure") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
+
+```
+
+
+---
+
+## Correlation Heatmap
+
+
+
+```{r}
+# Correlation matrix
+cor_matrix <- cor(centrality_df[, c("degree", "closeness", "betweenness",
+"eigenvector", "pagerank", "katz")])
+
+# Convert to long format for ggplot
+cor_long <- as.data.frame(as.table(cor_matrix))
+  names(cor_long) <- c("Var1", "Var2", "Correlation")
+
+ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(Correlation, 2)), color = "black", size = 4) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red",
+  midpoint = 0, limits = c(-1, 1)) +
+  labs(title = "Correlation Matrix of Centrality Measures",
+    x = NULL, y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+---
+
+# Network Visualizations with ggraph
+
+## Network Colored by Degree
+
+
+```{r}
+# Sample nodes for visualization
+set.seed(42)
+
+# Get all node IDs from centrality_df (consistent source)
+all_node_ids <- centrality_df$node_id
+
+# Top 200 by degree
+top_nodes <- centrality_df %>%
+  arrange(desc(degree)) %>%
+  head(200) %>%
+  pull(node_id)
+
+# Remaining nodes
+remaining_nodes <- setdiff(all_node_ids, top_nodes)
+
+# Sample 300 from remaining (or all if < 300)
+n_sample <- min(300, length(remaining_nodes))
+random_nodes <- sample(remaining_nodes, n_sample)
+
+# Combine
+sample_nodes <- c(top_nodes, random_nodes)
+
+cat("Sample size:", length(sample_nodes), "nodes\n")
+cat(" - Top nodes:", length(top_nodes), "\n")
+cat(" - Random nodes:", n_sample, "\n")
+
+# Create subgraph
+g_sample <- induced_subgraph(g, sample_nodes)
+
+# Convert to tidygraph
+tg_sample <- as_tbl_graph(g_sample) %>%
+  activate(nodes) %>%
+  mutate(degree_cent = centrality_degree())
+
+# Plot with ggraph
+ggraph(tg_sample, layout = "fr") +
+  geom_edge_link(alpha = 0.1, color = "gray70") +
+  geom_node_point(aes(size = degree_cent, color = degree_cent)) +
+  scale_color_gradient(low = "lightblue", high = "darkblue", name = "Degree") +
+  scale_size_continuous(range = c(1, 8), guide = "none") +
+  labs(title = "Collaboration Network Colored by Degree Centrality",
+    subtitle = "Node size and color represent degree (number of collaborators)") +
+  theme_graph() +
+  theme(legend.position = "right")
+
+```
+
+
+---
+
+## Network Colored by Betweenness
+
+
+
+```{r}
+
+tg_sample <- tg_sample %>%
+  activate(nodes) %>%
+  mutate(betw_cent = centrality_betweenness(normalized = TRUE))
+
+ggraph(tg_sample, layout = "fr") +
+  geom_edge_link(alpha = 0.1, color = "gray70") +
+  geom_node_point(aes(size = betw_cent, color = betw_cent)) +
+  scale_color_gradient(low = "lightgreen", high = "darkgreen", name = "Betweenness") +
+  scale_size_continuous(range = c(1, 8), guide = "none") +
+  labs(title = "Collaboration Network Colored by Betweenness Centrality",
+    subtitle = "Larger nodes = knowledge brokers connecting communities") +
+  theme_graph() +
+  theme(legend.position = "right")
+```
+
+---
+
+## Network Colored by PageRank
+
+
+```{r}
+tg_sample <- tg_sample %>%
+  activate(nodes) %>%
+  mutate(pr_cent = centrality_pagerank())
+
+ggraph(tg_sample, layout = "fr") +
+  geom_edge_link(alpha = 0.1, color = "gray70") +
+  geom_node_point(aes(size = pr_cent, color = pr_cent)) +
+  scale_color_gradient(low = "lightyellow", high = "red", name = "PageRank") +
+  scale_size_continuous(range = c(1, 8), guide = "none") +
+  labs(title = "Collaboration Network Colored by PageRank",
+    subtitle = "Red nodes = High prestige researchers") +
+  theme_graph() +
+  theme(legend.position = "right")
+
+```
+
+---
+
+# Key Findings
+
+## Summary: Top Researchers by Measure
+
+
+```{r}
+# Identify top 5 for each measure
+top5_all <- bind_rows(
+  centrality_df %>% arrange(desc(degree)) %>% head(5) %>% mutate(measure = "Degree"),
+  centrality_df %>% arrange(desc(closeness)) %>% head(5) %>% mutate(measure = "Closeness"),
+  centrality_df %>% arrange(desc(betweenness)) %>% head(5) %>% mutate(measure = "Betweenness"),
+  centrality_df %>% arrange(desc(eigenvector)) %>% head(5) %>% mutate(measure = "Eigenvector"),
+  centrality_df %>% arrange(desc(pagerank)) %>% head(5) %>% mutate(measure = "PageRank"),
+  centrality_df %>% arrange(desc(katz)) %>% head(5) %>% mutate(measure = "Katz")
+) %>%
+  select(node_id, measure, degree_norm, betweenness_norm, pagerank_norm) %>%
+  pivot_longer(c(degree_norm, betweenness_norm, pagerank_norm),
+    names_to = "metric", values_to = "value")
+
+ggplot(top5_all, aes(x = node_id, y = value, fill = metric)) +
+  geom_col(position = "dodge") +
+  facet_wrap(~ measure, scales = "free_x", ncol = 2) +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set2", labels = c("Betweenness", "Degree", "PageRank")) +
+  labs(title = "Top 5 Researchers per Centrality Measure",
+    subtitle = "Comparing their profiles across different metrics",
+    x = NULL, y = "Normalized Centrality",
+    fill = "Metric") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+  axis.text.y = element_text(size = 8))
+
+```
+
+---
+
+# Save Results
+
+
+```{r}
+# Save centrality data
+write.csv(centrality_df, "output/tables/centrality_all_measures.csv", row.names = FALSE)
+
+cat("✓ Results saved to output/tables/centrality_all_measures.csv\n")
+
+```
+
+
+---
+
+# Conclusions
+
+1. **Degree centrality** identifies social hubs with many collaborators
+2. **Betweenness centrality** reveals knowledge brokers connecting research groups
+3. **PageRank and Eigenvector** highlight academic prestige
+4. Different measures capture **complementary dimensions** of influence
+
+**Next**: Community detection to see if top-central nodes are also community leaders.
+
+```{r}
+
+
+```

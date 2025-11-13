@@ -40,7 +40,16 @@ if (!file.exists(txt_file)) {
   tryCatch({
     # Cross-platform decompression
     if (.Platform$OS.type == "windows") {
-      R.utils::gunzip(dest_file, destname = txt_file, remove = FALSE)
+      if (requireNamespace("R.utils", quietly = TRUE)) {
+        R.utils::gunzip(dest_file, destname = txt_file, remove = FALSE)
+      } else {
+        # Fallback: use R's internal decompression
+        con_in <- gzfile(dest_file, "rb")
+        con_out <- file(txt_file, "wb")
+        writeBin(readBin(con_in, "raw", n = 1e8), con_out)
+        close(con_in)
+        close(con_out)
+      }
     } else {
       system(paste("gunzip -k", dest_file))
     }
@@ -52,11 +61,34 @@ if (!file.exists(txt_file)) {
   cat("✓ File already decompressed:", txt_file, "\n")
 }
 
-# Load as igraph object
-cat("\n📊 Loading network...\n")
-g <- read_graph(txt_file, format = "edgelist", directed = FALSE)
+# ==============================================================================
+# FIX: Read and clean file (skip comment lines starting with #)
+# ==============================================================================
 
-# Basic stats
+cat("\n📊 Loading and cleaning network data...\n")
+
+# Read file and remove comment lines
+raw_data <- readLines(txt_file)
+cat("Total lines read:", length(raw_data), "\n")
+
+# Filter out comment lines (starting with #)
+clean_data <- raw_data[!grepl("^#", raw_data)]
+cat("Data lines (non-comments):", length(clean_data), "\n")
+
+# Write cleaned data to temporary file
+temp_file <- "data/raw/ca-GrQc_clean.txt"
+writeLines(clean_data, temp_file)
+
+# Load as igraph object from cleaned file
+g <- read_graph(temp_file, format = "edgelist", directed = FALSE)
+
+# Remove temporary file
+unlink(temp_file)
+
+# ==============================================================================
+# Network Summary
+# ==============================================================================
+
 cat("\n=== Network Summary ===\n")
 cat("Nodes (authors):", vcount(g), "\n")
 cat("Edges (collaborations):", ecount(g), "\n")
