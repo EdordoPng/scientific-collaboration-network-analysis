@@ -108,24 +108,45 @@ cat("✓ Centrality measures calculated\n")
 
 
 ```{r}
-
-# Top 15 by degree
+# Top 15 by degree, ordinati decrescenti
 top15_degree <- centrality_df %>%
   arrange(desc(degree)) %>%
   head(15) %>%
-  mutate(node_id = factor(node_id, levels = node_id))
+  mutate(rank = row_number())
 
-# Barplot
-ggplot(top15_degree, aes(x = node_id, y = degree, fill = degree)) +
-  geom_col() +
-  coord_flip() +
-  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+ggplot(top15_degree, aes(x = rank, y = degree)) +
+  geom_point(aes(size = degree, color = degree), alpha = 0.7) +
+  geom_line(color = "gray50", linetype = "dashed", size = 0.5) +
+  geom_text(aes(label = node_id), vjust = -1, size = 3.5, fontface = "bold") +
+  scale_x_continuous(breaks = 1:15, labels = paste0("#", 1:15)) +
+  scale_color_gradient(low = "lightblue", high = "darkblue") +
+  scale_size_continuous(range = c(4, 12), guide = "none") +
   labs(title = "Top 15 Researchers by Degree Centrality",
-    subtitle = "Number of direct collaborators",
-    x = "Author ID", y = "Degree (Number of Collaborators)") +
+       subtitle = "Ranked from highest to lowest collaborators",
+       x = "Rank", y = "Degree (Number of Collaborators)",
+       color = "Degree") +
   theme_minimal(base_size = 12) +
-  theme(legend.position = "none",
-  axis.text.y = element_text(size = 10))
+  theme(panel.grid.minor = element_blank())
+
+# Top 30 for bubble chart
+top30 <- centrality_df %>%
+  arrange(desc(degree)) %>%
+  head(30) %>%
+  mutate(rank = row_number())
+
+ggplot(top30, aes(x = rank, y = degree)) +
+  geom_point(aes(size = betweenness, color = pagerank), alpha = 0.6) +
+  geom_text(aes(label = node_id), size = 2.5, fontface = "bold", check_overlap = TRUE) +
+  scale_size_continuous(range = c(3, 15), name = "Betweenness") +
+  scale_color_gradient(low = "yellow", high = "red", name = "PageRank") +
+  scale_x_continuous(breaks = seq(1, 30, 5)) +
+  labs(title = "Top 30 Researchers: Multi-dimensional Centrality View",
+       subtitle = "X = Rank | Y = Degree | Size = Betweenness | Color = PageRank",
+       x = "Rank (by Degree)", y = "Degree (Collaborators)") +
+  theme_minimal(base_size = 12)
+
+
+
 ```
 
 
@@ -140,17 +161,40 @@ ggplot(top15_degree, aes(x = node_id, y = degree, fill = degree)) +
 top15_closeness <- centrality_df %>%
   arrange(desc(closeness)) %>%
   head(15) %>%
-  mutate(node_id = factor(node_id, levels = node_id))
+  mutate(rank = row_number())
 
-ggplot(top15_closeness, aes(x = node_id, y = closeness, fill = closeness)) +
-  geom_col() +
-  coord_flip() +
-  scale_fill_gradient(low = "lightyellow", high = "orange") +
+ggplot(top15_closeness, aes(x = rank, y = closeness)) +
+  geom_line(color = "darkorange", size = 1, linetype = "dashed") +
+  geom_point(aes(size = closeness, color = closeness), alpha = 0.8) +
+  geom_text(aes(label = node_id), vjust = -1.2, size = 3, fontface = "bold") +
+  scale_x_continuous(breaks = 1:15, labels = paste0("#", 1:15)) +
+  scale_color_gradient(low = "lightyellow", high = "darkorange") +
+  scale_size_continuous(range = c(4, 10), guide = "none") +
   labs(title = "Top 15 Researchers by Closeness Centrality",
-    subtitle = "Quick access to entire network",
-    x = "Author ID", y = "Closeness (normalized)") +
+       subtitle = "Ability to spread information quickly through the network",
+       x = "Rank", y = "Closeness (Normalized)",
+       color = "Closeness") +
   theme_minimal(base_size = 12) +
-  theme(legend.position = "none")
+  theme(panel.grid.minor = element_blank())
+
+
+# Top 30 per visualizzazione comparativa
+top30 <- centrality_df %>%
+  arrange(desc(closeness)) %>%
+  head(30)
+
+ggplot(top30, aes(x = degree, y = closeness)) +
+  geom_point(aes(size = pagerank, color = betweenness), alpha = 0.7) +
+  geom_text(aes(label = node_id), vjust = -1.2, size = 2.8, fontface = "bold") +
+  scale_color_gradient(low = "lightyellow", high = "red", name = "Betweenness") +
+  scale_size_continuous(range = c(3, 10), name = "PageRank") +
+  labs(title = "Closeness vs Degree: Different Types of Influence",
+       subtitle = "X = Social hubs | Y = Network efficiency | Size = PageRank | Color = Betweenness",
+       x = "Degree (Number of Collaborators)",
+       y = "Closeness Centrality (Normalized)") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
 
 ```
 
@@ -163,20 +207,42 @@ ggplot(top15_closeness, aes(x = node_id, y = closeness, fill = closeness)) +
 
 
 ```{r}
-top15_betweenness <- centrality_df %>%
-  arrange(desc(betweenness)) %>%
-  head(15) %>%
-  mutate(node_id = factor(node_id, levels = node_id))
+# Top 20 by betweenness, ordinati decrescenti
 
-ggplot(top15_betweenness, aes(x = node_id, y = betweenness, fill = betweenness)) +
-  geom_col() +
-  coord_flip() +
-  scale_fill_gradient(low = "lightgreen", high = "darkgreen") +
-  labs(title = "Top 15 Researchers by Betweenness Centrality",
-    subtitle = "Knowledge brokers connecting communities",
-    x = "Author ID", y = "Betweenness (normalized)") +
+top20 <- centrality_df %>%
+  arrange(desc(betweenness)) %>%
+  head(20) %>%
+  mutate(rank = row_number())
+
+ggplot(top20, aes(x = rank, y = betweenness)) +
+  geom_point(aes(size = degree, color = pagerank), alpha = 0.7) +
+  geom_text(aes(label = node_id), size = 2.5, fontface = "bold", vjust = -1.2) +
+  scale_size_continuous(range = c(3, 12), name = "Degree") +
+  scale_color_gradient(low = "lightgreen", high = "darkgreen", name = "PageRank") +
+  scale_x_continuous(breaks = seq(1, 20, 2)) +
+  labs(title = "Top 20 Knowledge Brokers: Multi-dimensional View",
+       subtitle = "X = Rank | Y = Betweenness | Size = Degree | Color = PageRank",
+       x = "Rank (by Betweenness)", y = "Betweenness Centrality") +
+  theme_minimal(base_size = 12)
+
+
+# Top 30 per comparazione
+top30 <- centrality_df %>%
+  arrange(desc(betweenness)) %>%
+  head(30)
+
+ggplot(top30, aes(x = degree, y = betweenness)) +
+  geom_point(aes(size = pagerank, color = closeness), alpha = 0.7) +
+  geom_text(aes(label = node_id), vjust = -1.2, size = 2.8, fontface = "bold") +
+  scale_color_gradient(low = "yellow", high = "red", name = "Closeness") +
+  scale_size_continuous(range = c(3, 10), name = "PageRank") +
+  labs(title = "Knowledge Brokers vs Social Hubs",
+       subtitle = "X = Social connections | Y = Brokerage power | Size = PageRank | Color = Closeness",
+       x = "Degree (Number of Collaborators)",
+       y = "Betweenness Centrality (Normalized)") +
   theme_minimal(base_size = 12) +
-  theme(legend.position = "none")
+  theme(panel.grid.minor = element_blank())
+
 
 ```
 
