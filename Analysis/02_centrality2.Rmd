@@ -1,0 +1,210 @@
+---
+title: "02_centrality_analysis"
+author: "Edoardo Diana"
+date: "2025-11-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+fig.width = 12, fig.height = 8)
+
+```
+
+```{r}
+library(igraph)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(tidygraph)
+library(ggraph)
+
+```
+
+
+# Introduction
+
+This notebook analyzes **centrality measures** to identify the most influential researchers in the arXiv General Relativity collaboration network.
+
+## Research Question
+
+**Who are the most influential researchers in the theoretical physics community?**
+
+Different centrality measures capture different notions of "influence":
+
+- **Degree**: Social hubs (many collaborators)
+- **Closeness**: Quick access to entire network
+- **Betweenness**: Knowledge brokers (bridge different communities)
+- **Eigenvector**: Collaborate with other influential researchers
+- **PageRank**: Prestige from connections
+- **Katz**: Weighted influence considering all path lengths
+
+---
+
+# Load Data
+
+Load main component (prepared in 01_data_preparation.Rmd)
+
+```{r}
+data_file <- "data/processed/network_main_component.rds"
+
+if (!file.exists(data_file)) {
+stop("❌ Main component not found. Run 01_data_preparation.Rmd first!")
+}
+
+g <- readRDS(data_file)
+
+cat("Network loaded:\n")
+cat("Nodes:", vcount(g), "\n")
+cat("Edges:", ecount(g), "\n")
+cat("Density:", round(edge_density(g), 6), "\n")
+
+```
+
+---
+## Power Function
+
+Compute power \( x = (1/x) A \) using iterative method.
+
+```{r}
+# COPIATA DAL PROFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+
+# Compute power x = (1/x) A 
+#INPUT
+# A = graph adjacency matrix
+# t = precision
+# OUTPUT
+# A list with:
+# vector = power vector
+# iter = number of iterations
+
+power = function(A, t) {
+  n = dim(A)[1];
+  # x_2k
+  x0 = rep(0, n);
+  # x_2k+1
+  x1 = rep(1, n);
+  # x_2k+2
+  x2 = rep(1, n);
+  diff = 1
+  eps = 1/10^t;
+  iter = 0;
+  while (diff > eps) {
+    x0 = x1;
+    x1 = x2;
+    x2 = (1/x2) %*% A;
+    diff = sum(abs(x2 - x0));
+    iter = iter + 1;
+  } 
+  # it holds now: alpha x2 = (1/x2) A
+  alpha = ((1/x2) %*% A[,1]) / x2[1];
+  # hence sqrt(alpha) * x2 = (1/(sqrt(alpha) * x2)) A
+  x2 = sqrt(alpha) %*% x2;
+  return(list(vector = as.vector(x2), iter = iter))
+}  
+```
+
+
+# Centrality Measures
+
+
+---
+
+# Calculate All Centrality Measures
+
+
+
+```{r}
+
+# Extract adjacency matrix
+A <- as_adjacency_matrix(g, sparse = TRUE)
+
+# 1. DEGREE CENTRALITY
+V(g)$degree <- degree(g)
+
+# 2. CLOSENESS CENTRALITY
+V(g)$closeness <- closeness(g, normalized = TRUE)
+
+# 3. BETWEENNESS CENTRALITY
+V(g)$betweenness <- betweenness(g, normalized = TRUE)
+
+# 4. EIGENVECTOR CENTRALITY
+V(g)$eigenvector <- eigen_centrality(g)$vector
+
+# 5. PAGERANK
+V(g)$pagerank <- page_rank(g)$vector
+
+# 6. KATZ CENTRALITY (alpha based on eigenvalues, like professor)
+
+# Metodo troppo lento
+# eig <- eigen(A)$values
+# r <- max(abs(eig))
+# alpha <- 0.85 / r
+# V(g)$katz <- alpha_centrality(g, alpha = alpha)
+
+eig_result <- eigen_centrality(g)
+lambda_max <- eig_result$value # Dominant eigenvalue from igraph
+alpha <- 0.85 / lambda_max
+V(g)$katz <- alpha_centrality(g, alpha = alpha)
+cat("✓ Katz computed (alpha =", round(alpha, 6), ", lambda_max =", round(lambda_max, 2), ")\n")
+
+
+cat("✓ All centrality measures computed and saved as vertex attributes\n")
+
+# 7. POWER
+
+# Convert sparse matrix to dense (required for power function)
+A_dense <- as.matrix(A)
+
+# Add damping to adjacency matrix
+damping <- 0.15
+n <- vcount(g)
+I <- diag(damping, n)
+Ad <- A_dense + I
+
+# Compute power with precision t = 4 (faster than t = 6)
+cat("Computing power... (this may take several minutes)\n")
+power_result <- power(Ad, t = 4)
+V(g)$power <- power_result$vector
+
+cat("✓ Power computed (", power_result$iter, "iterations)\n")
+
+
+cat("\n✓ All centrality measures and power computed and saved as vertex attributes\n")
+```
+
+
+---
+
+# Extract Node Data
+
+Now extract vertex attributes into a dataframe (professor's style with `as_data_frame`).
+
+```{r}
+# Extract all vertex attributes as dataframe
+nodes <- as_data_frame(g, what = "vertices")
+
+# Add node_id if not present
+if (!"name" %in% colnames(nodes)) {
+  nodes$name <- as.character(1:vcount(g))
+}
+
+# Add normalized versions
+nodes <- nodes %>%
+  mutate(
+    degree_norm = (degree - min(degree)) / (max(degree) - min(degree)),
+    closeness_norm = (closeness - min(closeness)) / (max(closeness) - min(closeness)),
+    betweenness_norm = (betweenness - min(betweenness)) / (max(betweenness) - min(betweenness)),
+    eigenvector_norm = (eigenvector - min(eigenvector)) / (max(eigenvector) - min(eigenvector)),
+    pagerank_norm = (pagerank - min(pagerank)) / (max(pagerank) - min(pagerank)),
+    katz_norm = (katz - min(katz)) / (max(katz) - min(katz))
+  )
+
+cat("✓ Node dataframe created with", nrow(nodes), "researchers\n")
+head(nodes)
+```
+
+
+```{r}
+```
+

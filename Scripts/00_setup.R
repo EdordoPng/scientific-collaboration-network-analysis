@@ -1,21 +1,35 @@
 # ==============================================================================
 # Script 00: Setup and Package Installation
 # Checks for existing packages before installing
+# Updated for AMiner Citation Network dataset
 # ==============================================================================
 
 cat("=== Checking and installing required packages ===\n\n")
 
 packages <- c(
-  "igraph",        # Network analysis
-  "dplyr",         # Data manipulation
-  "ggplot2",       # Visualization
-  "tidyr",         # Data tidying
-  "knitr",         # R Markdown support
-  "GGally",        # Network visualization
-  "visNetwork",    # Interactive networks
-  "ggraph",        # ggplot2 for networks
+  # Network analysis
+  "igraph",        # Core network analysis
   "tidygraph",     # Tidy network analysis
-  "patchwork"      # Combine plots
+  "ggraph",        # ggplot2 for networks
+  
+  # Data manipulation
+  "dplyr",         # Data wrangling
+  "tidyr",         # Data tidying
+  "purrr",         # Functional programming
+  "stringr",       # String manipulation
+  
+  # Visualization
+  "ggplot2",       # Plotting
+  "patchwork",     # Combine plots
+  "scales",        # Scale functions
+  
+  # Data import/export
+  "jsonlite",      # JSON parsing (for AMiner data)
+  "readr",         # Fast data reading
+  
+  # R Markdown
+  "knitr",         # R Markdown support
+  "rmarkdown"      # Document rendering
 )
 
 # Check which packages are missing
@@ -41,3 +55,4 @@ loaded <- sapply(packages, function(pkg) {
 
 cat("\n=== Setup complete ===\n")
 cat("Total packages loaded:", length(packages), "\n")
+cat("\n📊 Ready for AMiner Citation Network analysis\n")

@@ -15,9 +15,9 @@ fig.width = 12, fig.height = 8)
 library(igraph)
 library(dplyr)
 library(ggplot2)
-library(knitr)
 library(tidyr)
-library(patchwork) # Per combinare plot
+library(tidygraph)
+library(ggraph)
 
 ```
 
@@ -73,6 +73,8 @@ cat("Density:", round(edge_density(g), 6), "\n")
 
 
 ```{r}
+
+
 # Calculate all centrality measures
 centrality_df <- data.frame(
   node_id = as.character(1:vcount(g)),
@@ -258,17 +260,63 @@ ggplot(top30, aes(x = degree, y = betweenness)) +
 top15_eigen <- centrality_df %>%
   arrange(desc(eigenvector)) %>%
   head(15) %>%
-  mutate(node_id = factor(node_id, levels = node_id))
+  mutate(rank = row_number())
 
-ggplot(top15_eigen, aes(x = node_id, y = eigenvector, fill = eigenvector)) +
-  geom_col() +
-  coord_flip() +
-  scale_fill_gradient(low = "pink", high = "red") +
+ggplot(top15_eigen, aes(x = rank, y = eigenvector)) +
+  geom_line(color = "darkred", size = 1, linetype = "dashed") +
+  geom_point(aes(size = eigenvector, color = eigenvector), alpha = 0.8) +
+  geom_text(aes(label = node_id), vjust = -1.2, size = 3, fontface = "bold") +
+  scale_x_continuous(breaks = 1:15, labels = paste0("#", 1:15)) +
+  scale_color_gradient(low = "pink", high = "darkred") +
+  scale_size_continuous(range = c(4, 10), guide = "none") +
   labs(title = "Top 15 Researchers by Eigenvector Centrality",
-    subtitle = "Collaborating with other influential researchers",
-    x = "Author ID", y = "Eigenvector Centrality") +
+       subtitle = "High prestige from connections to other influential nodes",
+       x = "Rank", y = "Eigenvector Centrality",
+       color = "Eigenvector") +
   theme_minimal(base_size = 12) +
-  theme(legend.position = "none")
+  theme(panel.grid.minor = element_blank())
+
+# Top 30 per comparazione
+top30 <- centrality_df %>%
+  arrange(desc(eigenvector)) %>%
+  head(30)
+
+ggplot(top30, aes(x = degree, y = eigenvector)) +
+  geom_point(aes(size = pagerank, color = betweenness), alpha = 0.7) +
+  geom_text(aes(label = node_id), vjust = -1.2, size = 2.8, fontface = "bold") +
+  scale_color_gradient(low = "lightyellow", high = "red", name = "Betweenness") +
+  scale_size_continuous(range = c(3, 10), name = "PageRank") +
+  labs(title = "Academic Prestige vs Social Connections",
+       subtitle = "X = Number of collaborators | Y = Quality of collaborators | Size = PageRank | Color = Betweenness",
+       x = "Degree (Number of Collaborators)",
+       y = "Eigenvector Centrality") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+# Top 15 eigenvector con tutte le metriche
+top15_multi <- centrality_df %>%
+  arrange(desc(eigenvector)) %>%
+  head(15) %>%
+  select(node_id, degree_norm, closeness_norm, betweenness_norm, 
+         eigenvector_norm, pagerank_norm) %>%
+  pivot_longer(-node_id, names_to = "measure", values_to = "value") %>%
+  mutate(
+    measure = gsub("_norm", "", measure),
+    measure = factor(measure, levels = c("degree", "closeness", "betweenness", 
+                                         "eigenvector", "pagerank")),
+    node_id = factor(node_id, levels = rev(unique(node_id)))
+  )
+
+ggplot(top15_multi, aes(x = measure, y = node_id, fill = value)) +
+  geom_tile(color = "white", size = 0.5) +
+  geom_text(aes(label = round(value, 2)), size = 2.5, fontface = "bold") +
+  scale_fill_gradient2(low = "white", mid = "pink", high = "darkred",
+                       midpoint = 0.5, name = "Normalized\nCentrality") +
+  labs(title = "Top 15 by Eigenvector: Multi-dimensional Profile",
+       subtitle = "High eigenvector = collaborating with other influential researchers",
+       x = "Centrality Measure", y = "Author ID") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
 
@@ -285,17 +333,59 @@ ggplot(top15_eigen, aes(x = node_id, y = eigenvector, fill = eigenvector)) +
 top15_pagerank <- centrality_df %>%
   arrange(desc(pagerank)) %>%
   head(15) %>%
-  mutate(node_id = factor(node_id, levels = node_id))
+  mutate(rank = row_number())
 
-ggplot(top15_pagerank, aes(x = node_id, y = pagerank, fill = pagerank)) +
-  geom_col() +
-  coord_flip() +
-  scale_fill_gradient(low = "lightcoral", high = "darkred") +
+ggplot(top15_pagerank, aes(x = rank, y = pagerank)) +
+  geom_line(color = "darkred", size = 1, linetype = "dashed") +
+  geom_point(aes(size = pagerank, color = pagerank), alpha = 0.8) +
+  geom_text(aes(label = node_id), vjust = -1.2, size = 3, fontface = "bold") +
+  scale_x_continuous(breaks = 1:15, labels = paste0("#", 1:15)) +
+  scale_color_gradient(low = "lightcoral", high = "darkred") +
+  scale_size_continuous(range = c(4, 10), guide = "none") +
   labs(title = "Top 15 Researchers by PageRank",
-    subtitle = "Overall network prestige",
-    x = "Author ID", y = "PageRank") +
+       subtitle = "Network-wide prestige score",
+       x = "Rank", y = "PageRank",
+       color = "PageRank") +
   theme_minimal(base_size = 12) +
-  theme(legend.position = "none")
+  theme(panel.grid.minor = element_blank())
+
+# Top 30 per comparazione
+top30 <- centrality_df %>%
+  arrange(desc(pagerank)) %>%
+  head(30)
+
+ggplot(top30, aes(x = eigenvector, y = pagerank)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray50", size = 0.8) +
+  geom_point(aes(size = degree, color = betweenness), alpha = 0.7) +
+  geom_text(aes(label = node_id), vjust = -1.2, size = 2.8, fontface = "bold") +
+  scale_color_gradient(low = "yellow", high = "red", name = "Betweenness") +
+  scale_size_continuous(range = c(3, 10), name = "Degree") +
+  labs(title = "PageRank vs Eigenvector: Algorithmic Differences",
+       subtitle = "Dashed line = perfect agreement | PageRank includes damping factor (0.85)",
+       x = "Eigenvector Centrality",
+       y = "PageRank") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
+# Top 20 per bubble chart
+top20 <- centrality_df %>%
+  arrange(desc(pagerank)) %>%
+  head(20) %>%
+  mutate(rank = row_number())
+
+ggplot(top20, aes(x = rank, y = pagerank)) +
+  geom_point(aes(size = eigenvector, color = betweenness), alpha = 0.7) +
+  geom_text(aes(label = node_id), size = 2.5, fontface = "bold", vjust = -1.2) +
+  scale_size_continuous(range = c(3, 12), name = "Eigenvector") +
+  scale_color_gradient(low = "lightyellow", high = "darkred", name = "Betweenness") +
+  scale_x_continuous(breaks = seq(1, 20, 2)) +
+  labs(title = "Top 20 Researchers by PageRank: Multi-dimensional View",
+       subtitle = "X = Rank | Y = PageRank | Size = Eigenvector | Color = Betweenness",
+       x = "Rank (by PageRank)", y = "PageRank") +
+  theme_minimal(base_size = 12)
+
+
+
 ```
 
 ---
@@ -311,17 +401,40 @@ ggplot(top15_pagerank, aes(x = node_id, y = pagerank, fill = pagerank)) +
 top15_katz <- centrality_df %>%
   arrange(desc(katz)) %>%
   head(15) %>%
-  mutate(node_id = factor(node_id, levels = node_id))
+  mutate(rank = row_number())
 
-ggplot(top15_katz, aes(x = node_id, y = katz, fill = katz)) +
-  geom_col() +
-  coord_flip() +
-  scale_fill_gradient(low = "lavender", high = "purple") +
+ggplot(top15_katz, aes(x = rank, y = katz)) +
+  geom_line(color = "purple4", size = 1, linetype = "dashed") +
+  geom_point(aes(size = katz, color = katz), alpha = 0.8) +
+  geom_text(aes(label = node_id), vjust = -1.2, size = 3, fontface = "bold") +
+  scale_x_continuous(breaks = 1:15, labels = paste0("#", 1:15)) +
+  scale_color_gradient(low = "lavender", high = "purple4") +
+  scale_size_continuous(range = c(4, 10), guide = "none") +
   labs(title = "Top 15 Researchers by Katz Centrality",
-    subtitle = "Global influence via all network paths",
-    x = "Author ID", y = "Katz Centrality") +
+       subtitle = "Weighted influence through all possible walks in the network",
+       x = "Rank", y = "Katz Centrality",
+       color = "Katz") +
   theme_minimal(base_size = 12) +
-  theme(legend.position = "none")
+  theme(panel.grid.minor = element_blank())
+
+
+# Top 30 per comparazione
+top30 <- centrality_df %>%
+  arrange(desc(katz)) %>%
+  head(30)
+
+ggplot(top30, aes(x = eigenvector, y = katz)) +
+  geom_point(aes(size = pagerank, color = degree), alpha = 0.7) +
+  geom_text(aes(label = node_id), vjust = -1.2, size = 2.8, fontface = "bold") +
+  scale_color_gradient(low = "lightblue", high = "darkblue", name = "Degree") +
+  scale_size_continuous(range = c(3, 10), name = "PageRank") +
+  labs(title = "Katz vs Eigenvector: Different Influence Models",
+       subtitle = "Katz considers ALL paths (decaying weights) | Eigenvector only infinite walks",
+       x = "Eigenvector Centrality",
+       y = "Katz Centrality") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+
 ```
 
 
@@ -361,26 +474,35 @@ top10_ids <- centrality_df %>%
   head(10) %>%
   pull(node_id)
 
-# Extract normalized values for comparison
-top10_data <- centrality_df %>%
+# Prepare data
+top10_heatmap <- centrality_df %>%
   filter(node_id %in% top10_ids) %>%
   select(node_id, degree_norm, closeness_norm, betweenness_norm,
-  eigenvector_norm, pagerank_norm, katz_norm) %>%
+         eigenvector_norm, pagerank_norm, katz_norm) %>%
   pivot_longer(-node_id, names_to = "measure", values_to = "value") %>%
-  mutate(measure = gsub("_norm", "", measure),
+  mutate(
+    measure = gsub("_norm", "", measure),
     measure = factor(measure, levels = c("degree", "closeness", "betweenness",
-"eigenvector", "pagerank", "katz")))
+                                         "eigenvector", "pagerank", "katz")),
+    node_id = factor(node_id, levels = rev(top10_ids))
+  )
 
-ggplot(top10_data, aes(x = node_id, y = value, fill = measure)) +
-  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
-  coord_flip() +
-  scale_fill_brewer(palette = "Set3") +
-  labs(title = "Top 10 Researchers: Normalized Centrality Comparison",
-       subtitle = "All measures scaled to [0,1] for fair comparison",
-       x = "Author ID", y = "Normalized Centrality",
-       fill = "Measure") +
-  theme_minimal(base_size = 12) +
-  theme(legend.position = "bottom")
+ggplot(top10_heatmap, aes(x = measure, y = node_id, fill = value)) +
+  geom_tile(color = "white", size = 1.2) +
+  geom_text(aes(label = sprintf("%.2f", value)), size = 3.5, fontface = "bold") +
+  scale_fill_gradient2(low = "white", mid = "lightyellow", high = "red",
+                       midpoint = 0.5, name = "Normalized\nCentrality") +
+  labs(title = "Top 10 Researchers by PageRank: Multi-dimensional Profile",
+       subtitle = "Cell values show normalized centrality [0-1] | Red = High influence",
+       x = "Centrality Measure", y = "Author ID") +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+    axis.text.y = element_text(face = "bold"),
+    panel.grid = element_blank(),
+    plot.title = element_text(face = "bold", size = 14)
+  )
+
 
 ```
 
